@@ -300,8 +300,10 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     open override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         backgroundView.frame = view.bounds
-
-        if let navController = presentingNavigationController, settings.behavior.hideNavigationBarOnShow {
+        
+        if isPopover() {
+            presentView(view, presentingView: view, animationDuration: 0, completion: nil)
+        } else if let navController = presentingNavigationController, settings.behavior.hideNavigationBarOnShow {
             navigationBarWasHiddenAtStart = navController.isNavigationBarHidden
             navController.setNavigationBarHidden(true, animated: animated)
         }
@@ -333,6 +335,7 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         collectionView.collectionViewLayout.invalidateLayout()
         
         coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.closePopoverIfNeeded()
             self?.setUpContentInsetForHeight(size.height)
             self?.collectionView.reloadData()
             if let scale = self?.settings.animation.scale {
@@ -680,10 +683,34 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         rightInset += safeAreaInsets.right
         topInset += safeAreaInsets.top
 
+        if isPopover() {
+            topInset = 0
+        }
+
         collectionView.contentInset = UIEdgeInsets(top: topInset, left: leftInset, bottom: bottomInset, right: rightInset)
         if !settings.behavior.useDynamics {
             collectionView.contentOffset.y = -height + contentHeight + bottomInset
         }
+    }
+    
+    private func isPopover() -> Bool {
+        return modalPresentationStyle == .popover
+    }
+    
+    private func closePopoverIfNeeded() {
+        guard !isPopover() else {return}
+        guard let windowSize = view.window?.frame.size else {return}
+        
+        let newSizeTotal = windowSize.width + windowSize.height
+        
+        // dismiss if we go into split view to work around issue
+        if let previousSizeTotal = previousSizeTotal {
+            if previousSizeTotal != newSizeTotal && (presentationController != nil && !isBeingPresented) {
+                dismiss()
+            }
+        }
+        
+        previousSizeTotal = newSizeTotal
     }
 
     // MARK: - Private properties
@@ -697,6 +724,7 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     fileprivate var _dynamicSectionIndex: Int?
     fileprivate var _headerData: RawData<HeaderDataType>?
     fileprivate var _sections = [Section<ActionDataType, SectionHeaderDataType>]()
+    fileprivate var previousSizeTotal: CGFloat?
 }
 
 // MARK: - DynamicsActionController class
