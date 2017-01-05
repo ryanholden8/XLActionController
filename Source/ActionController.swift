@@ -45,10 +45,10 @@ open class Section<ActionDataType, SectionHeaderDataType> {
 
 public enum CellSpec<CellType: UICollectionViewCell, CellDataType> {
     
-    case nibFile(nibName: String, bundle: Bundle?, height:((CellDataType)-> CGFloat))
-    case cellClass(height:((CellDataType)-> CGFloat))
+    case nibFile(nibName: String, bundle: Bundle?, height:((CellDataType, IndexPath)-> CGFloat))
+    case cellClass(height:((CellDataType, IndexPath)-> CGFloat))
     
-    public var height: ((CellDataType) -> CGFloat) {
+    public var height: ((CellDataType, IndexPath) -> CGFloat) {
         switch self {
         case .cellClass(let heightCallback):
             return heightCallback
@@ -111,7 +111,7 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     open var onConfigureSectionHeader: ((SectionHeaderViewType, SectionHeaderDataType) -> ())?
     open var onConfigureCellForAction: ((ActionViewType, Action<ActionDataType>, IndexPath) -> ())?
     
-    open var contentHeight: CGFloat = 0.0
+    open var contentHeight: CGFloat = 0
 
     open var safeAreaInsets: UIEdgeInsets {
         if #available(iOS 11, *) {
@@ -121,6 +121,8 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     }
 
     open var cancelView: UIView?
+    
+    private(set) open var shouldUseTwoColumns: Bool = false
 
     lazy open var backgroundView: UIView = {
         let backgroundView = UIView()
@@ -216,6 +218,18 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         return indexPath
     }
     
+    open func isFullWidthInTwoColumnMode(indexPath: IndexPath) -> Bool {
+        let numberInSection = collectionView.numberOfItems(inSection: indexPath.section)%2
+        let isEven = numberInSection % 2 == 0
+        let lastItemInSection = indexPath.row == numberInSection-1
+        
+        return !isEven && lastItemInSection
+    }
+    
+    open func dismiss() {
+        dismiss(nil)
+    }
+
     open func dismiss(_ completion: (() -> ())? = nil) {
         disableActions = true
         presentingViewController?.dismiss(animated: true) { [weak self] in
@@ -386,6 +400,13 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         cancelView.frame.size.height = settings.cancelView.height + safeAreaInsets.bottom
     }
 
+    
+    open override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        
+        sync(traitCollection: traitCollection, previous: previousTraitCollection)
+    }
+        
     // MARK: - UICollectionViewDataSource
     
     open func numberOfSections(in collectionView: UICollectionView) -> Int {
@@ -469,10 +490,21 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         guard let action = self.actionForIndexPath(actionIndexPathFor(indexPath)), let actionData = action.data else {
             return CGSize.zero
         }
-
-        let referenceWidth = collectionView.bounds.size.width
+        
+        let referenceWidth: CGFloat
+        
+        if shouldUseTwoColumns {
+            if isFullWidthInTwoColumnMode(indexPath: indexPath) {
+                referenceWidth = collectionView.bounds.size.width
+            } else {
+                referenceWidth = collectionView.bounds.size.width/2
+            }
+        } else {
+            referenceWidth = collectionView.bounds.size.width
+        }
+        
         let margins = 2 * settings.collectionView.lateralMargin + collectionView.contentInset.left + collectionView.contentInset.right
-        return CGSize(width: referenceWidth - margins, height: cellSpec.height(actionData))
+        return CGSize(width: referenceWidth - margins, height: cellSpec.height(actionData, indexPath))
     }
     
     open func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
@@ -517,22 +549,31 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     open func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
         let containerView = transitionContext.containerView
         
-        let fromViewController = transitionContext.viewController(forKey: UITransitionContextViewControllerKey.from)!
-        let fromView = fromViewController.view
+        guard let fromViewController = transitionContext.viewController(forKey: UITransitionContextViewControllerKey.from) else {return}
+        guard let fromView = fromViewController.view else {return}
         
-        let toViewController = transitionContext.viewController(forKey: UITransitionContextViewControllerKey.to)!
-        let toView = toViewController.view
+        guard let toViewController = transitionContext.viewController(forKey: UITransitionContextViewControllerKey.to) else {return}
+        guard let toView = toViewController.view else {return}
         
         if isPresenting {
-            toView?.autoresizingMask = [.flexibleHeight, .flexibleWidth]
-            containerView.addSubview(toView!)
+            toView.autoresizingMask = [.flexibleHeight, .flexibleWidth]
+            containerView.addSubview(toView)
             
-            transitionContext.completeTransition(true)
-            presentView(toView!, presentingView: fromView!, animationDuration: settings.animation.present.duration, completion: nil)
+            // Ensure adaptive layout is setup before presenting so that demensions are accurate
+            sync(traitCollection: traitCollection, previous: nil)
+            
+            // set up collection view initial position taking into account top content inset
+            collectionView.frame = view.bounds
+            collectionView.frame.origin.y += contentHeight + (settings.cancelView.showCancel ? settings.cancelView.height : 0)
+            collectionViewLayout.footerReferenceSize = CGSize(width: 320, height: 0)
+            
+            presentView(toView, presentingView: fromView, animationDuration: settings.animation.present.duration, completion: {(finished) in
+                transitionContext.completeTransition(finished)
+            })
         } else {
-            dismissView(fromView!, presentingView: toView!, animationDuration: settings.animation.dismiss.duration) { completed in
+            dismissView(fromView, presentingView: toView, animationDuration: settings.animation.dismiss.duration) { completed in
                 if completed {
-                    fromView?.removeFromSuperview()
+                    fromView.removeFromSuperview()
                 }
                 transitionContext.completeTransition(completed)
             }
@@ -542,21 +583,31 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     open func presentView(_ presentedView: UIView, presentingView: UIView, animationDuration: Double, completion: ((_ completed: Bool) -> Void)?) {
         onWillPresentView()
         let animationSettings = settings.animation.present
-        UIView.animate(withDuration: animationDuration,
-            delay: animationSettings.delay,
-            usingSpringWithDamping: animationSettings.damping,
-            initialSpringVelocity: animationSettings.springVelocity,
-            options: animationSettings.options.union(.allowUserInteraction),
-            animations: { [weak self] in
-                if let transformScale = self?.settings.animation.scale {
-                    presentingView.transform = CGAffineTransform(scaleX: transformScale.width, y: transformScale.height)
-                }
-                self?.performCustomPresentationAnimation(presentedView, presentingView: presentingView)
-            },
-            completion: { [weak self] finished in
-                self?.onDidPresentView()
-                completion?(finished)
-            })
+        
+        let animations = {[weak self] in
+            if let transformScale = self?.settings.animation.scale {
+                presentingView.transform = CGAffineTransform(scaleX: transformScale.width, y: transformScale.height)
+            }
+            self?.performCustomPresentationAnimation(presentedView, presentingView: presentingView)
+        }
+        
+        let completion = {[weak self] (finished: Bool) in
+            self?.onDidPresentView()
+            completion?(finished)
+        }
+        
+        if animationDuration <= 0 {
+            animations()
+            completion(true)
+        } else {
+            UIView.animate(withDuration: animationDuration,
+                           delay: animationSettings.delay,
+                           usingSpringWithDamping: animationSettings.damping,
+                           initialSpringVelocity: animationSettings.springVelocity,
+                           options: animationSettings.options.union(.allowUserInteraction),
+                           animations: animations,
+                           completion: completion)
+        }
     }
     
     open func dismissView(_ presentedView: UIView, presentingView: UIView, animationDuration: Double, completion: ((_ completed: Bool) -> Void)?) {
@@ -634,13 +685,25 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     
     func prevCell(_ indexPath: IndexPath) -> ActionViewType? {
         let prevPath: IndexPath?
-        switch (indexPath as NSIndexPath).item {
-        case 0 where (indexPath as NSIndexPath).section > 0:
-            prevPath = IndexPath(item: collectionView(collectionView, numberOfItemsInSection: (indexPath as NSIndexPath).section - 1) - 1, section: (indexPath as NSIndexPath).section - 1)
-        case let x where x > 0:
-            prevPath = IndexPath(item: x - 1, section: (indexPath as NSIndexPath).section)
-        default:
-            prevPath = nil
+        
+        if shouldUseTwoColumns {
+            switch (indexPath as NSIndexPath).item {
+            case 0 where (indexPath as NSIndexPath).section > 0:
+                prevPath = IndexPath(item: collectionView(collectionView, numberOfItemsInSection: (indexPath as NSIndexPath).section - 1) - 1, section: (indexPath as NSIndexPath).section - 1)
+            case let x where x > 0:
+                prevPath = IndexPath(item: x - 1, section: (indexPath as NSIndexPath).section)
+            default:
+                prevPath = nil
+            }
+        } else {
+            switch (indexPath as NSIndexPath).item {
+            case 0 where (indexPath as NSIndexPath).section > 0:
+                prevPath = IndexPath(item: collectionView(collectionView, numberOfItemsInSection: (indexPath as NSIndexPath).section - 1) - 1, section: (indexPath as NSIndexPath).section - 1)
+            case let x where x > 0:
+                prevPath = IndexPath(item: x - 1, section: (indexPath as NSIndexPath).section)
+            default:
+                prevPath = nil
+            }
         }
         
         guard let unwrappedPrevPath = prevPath else { return nil }
@@ -663,7 +726,7 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     fileprivate func actionSectionIndexFor(_ section: Int) -> Int {
         return hasHeader() ? section - 1 : section
     }
-
+    
     fileprivate func setUpContentInsetForHeight(_ height: CGFloat) {
         
         initialContentInset = initialContentInset ?? collectionView.contentInset
@@ -711,6 +774,21 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         }
         
         previousSizeTotal = newSizeTotal
+    }
+    
+    open func sync(traitCollection: UITraitCollection, previous: UITraitCollection?) {
+        guard traitCollection.verticalSizeClass != .unspecified else {return}
+        guard traitCollection.verticalSizeClass != previous?.verticalSizeClass else {return}
+        
+        if traitCollection.verticalSizeClass == .compact {
+            shouldUseTwoColumns = true
+            contentHeight = collectionViewLayout.collectionViewContentSize.height
+        } else {
+            shouldUseTwoColumns = false
+            contentHeight = collectionViewLayout.collectionViewContentSize.height
+        }
+        
+        setUpContentInsetForHeight(view.frame.height)
     }
 
     // MARK: - Private properties
@@ -799,7 +877,7 @@ open class DynamicsActionController<ActionViewType: UICollectionViewCell, Action
         if let action = self.actionForIndexPath(actionIndexPathFor(indexPath)), let actionData = action.data {
             let referenceWidth = min(collectionView.bounds.size.width, collectionView.bounds.size.height)
             let width = referenceWidth - (2 * settings.collectionView.lateralMargin) - collectionView.contentInset.left - collectionView.contentInset.right
-            return CGSize(width: width, height: cellSpec.height(actionData))
+            return CGSize(width: width, height: cellSpec.height(actionData, indexPath))
         }
         return CGSize.zero
     }
