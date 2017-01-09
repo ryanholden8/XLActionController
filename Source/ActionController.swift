@@ -111,7 +111,20 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     open var onConfigureSectionHeader: ((SectionHeaderViewType, SectionHeaderDataType) -> ())?
     open var onConfigureCellForAction: ((ActionViewType, Action<ActionDataType>, IndexPath) -> ())?
     
-    open var contentHeight: CGFloat = 0
+    private var _contentHeight: CGFloat = 0
+    
+    open var contentHeight: CGFloat {
+        get {
+            if _contentHeight == 0 && traitCollection.horizontalSizeClass != .unspecified {
+                sync(traitCollection: traitCollection)
+            }
+            
+            return _contentHeight
+        }
+        set {
+            _contentHeight = newValue
+        }
+    }
 
     open var safeAreaInsets: UIEdgeInsets {
         if #available(iOS 11, *) {
@@ -401,7 +414,7 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     open override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
         
-        sync(traitCollection: traitCollection, previous: previousTraitCollection)
+        sync(traitCollection: traitCollection)
     }
         
     // MARK: - UICollectionViewDataSource
@@ -551,9 +564,6 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         if isPresenting {
             toView.autoresizingMask = [.flexibleHeight, .flexibleWidth]
             containerView.addSubview(toView)
-            
-            // Ensure adaptive layout is setup before presenting so that demensions are accurate
-            sync(traitCollection: traitCollection, previous: nil)
             
             // set up collection view initial position taking into account top content inset
             collectionView.frame = view.bounds
@@ -770,9 +780,9 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         previousSizeTotal = newSizeTotal
     }
     
-    open func sync(traitCollection: UITraitCollection, previous: UITraitCollection?) {
+    open func sync(traitCollection: UITraitCollection) {
         guard traitCollection.verticalSizeClass != .unspecified else {return}
-        guard traitCollection.verticalSizeClass != previous?.verticalSizeClass else {return}
+        guard traitCollection.verticalSizeClass != lastSyncedTraitCollection?.verticalSizeClass else {return}
         
         if traitCollection.verticalSizeClass == .compact {
             shouldUseTwoColumns = true
@@ -783,6 +793,8 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         }
         
         setUpContentInsetForHeight(view.frame.height)
+        
+        lastSyncedTraitCollection = traitCollection
     }
 
     // MARK: - Private properties
@@ -797,6 +809,7 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     fileprivate var _headerData: RawData<HeaderDataType>?
     fileprivate var _sections = [Section<ActionDataType, SectionHeaderDataType>]()
     fileprivate var previousSizeTotal: CGFloat?
+    private var lastSyncedTraitCollection: UITraitCollection?
 }
 
 // MARK: - DynamicsActionController class
