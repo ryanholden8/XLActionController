@@ -111,11 +111,11 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     open var onConfigureSectionHeader: ((SectionHeaderViewType, SectionHeaderDataType) -> ())?
     open var onConfigureCellForAction: ((ActionViewType, Action<ActionDataType>, IndexPath) -> ())?
     
-    private var _contentHeight: CGFloat = 0
+    private var _contentHeight: CGFloat = -1
     
     open var contentHeight: CGFloat {
         get {
-            if _contentHeight == 0 && traitCollection.horizontalSizeClass != .unspecified {
+            if _contentHeight == -1 && traitCollection.horizontalSizeClass != .unspecified {
                 sync(traitCollection: traitCollection)
             }
             
