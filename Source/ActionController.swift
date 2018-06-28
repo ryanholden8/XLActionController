@@ -25,6 +25,8 @@
 import Foundation
 import UIKit
 
+
+
 // MARK: - Section class
 
 open class Section<ActionDataType, SectionHeaderDataType> {
@@ -115,7 +117,7 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         if #available(iOS 11, *) {
             return view.safeAreaInsets
         }
-        return .zero
+        return UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     }
 
     open var cancelView: UIView?
