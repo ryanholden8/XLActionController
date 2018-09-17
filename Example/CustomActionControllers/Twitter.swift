@@ -105,7 +105,7 @@ open class TwitterActionController: ActionController<TwitterCell, ActionData, Tw
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
         settings.animation.present.duration = 0.6
         settings.animation.dismiss.duration = 0.6
-        cellSpec = CellSpec.nibFile(nibName: "TwitterCell", bundle: Bundle(for: TwitterCell.self), height: { _ in 56 })
+        cellSpec = CellSpec.nibFile(nibName: "TwitterCell", bundle: Bundle(for: TwitterCell.self), height: { _,_  in 56 })
         headerSpec = .cellClass(height: { _ -> CGFloat in return 45 })
 
         onConfigureHeader = { header, title in

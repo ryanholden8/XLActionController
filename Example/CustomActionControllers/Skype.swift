@@ -70,7 +70,7 @@ open class SkypeActionController: ActionController<SkypeCell, String, UICollecti
     public override init(nibName nibNameOrNil: String? = nil, bundle nibBundleOrNil: Bundle? = nil) {
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
         
-        cellSpec = .nibFile(nibName: "SkypeCell", bundle: Bundle(for: SkypeCell.self), height: { _ in 60 })
+        cellSpec = .nibFile(nibName: "SkypeCell", bundle: Bundle(for: SkypeCell.self), height: { _,_  in 60 })
         settings.animation.scale = nil
         settings.animation.present.duration = 0.5
         settings.animation.present.options = [.curveEaseOut, .allowUserInteraction]

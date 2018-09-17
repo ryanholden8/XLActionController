@@ -93,7 +93,7 @@ open class YoutubeActionController: ActionController<YoutubeCell, ActionData, UI
         settings.animation.dismiss.offset = 30
         settings.animation.dismiss.options = .curveLinear
         
-        cellSpec = .nibFile(nibName: "YoutubeCell", bundle: Bundle(for: YoutubeCell.self), height: { _  in 46 })
+        cellSpec = .nibFile(nibName: "YoutubeCell", bundle: Bundle(for: YoutubeCell.self), height: { _,_   in 46 })
         
         onConfigureCellForAction = { cell, action, indexPath in
             cell.setup(action.data?.title, detail: action.data?.subtitle, image: action.data?.image)
