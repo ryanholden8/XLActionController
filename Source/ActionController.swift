@@ -183,14 +183,14 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     // MARK: - ActionController initializers
     
     public override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
-        cellSpec = .cellClass(height: { _ -> CGFloat in 60 })
+        cellSpec = .cellClass(height: { _,_  -> CGFloat in 60 })
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
         transitioningDelegate = self
         modalPresentationStyle = .custom
     }
     
     public required init?(coder aDecoder: NSCoder) {
-        cellSpec = .cellClass(height: { _ -> CGFloat in 60 })
+        cellSpec = .cellClass(height: { _,_  -> CGFloat in 60 })
         super.init(coder: aDecoder)
         transitioningDelegate = self
         modalPresentationStyle = .custom

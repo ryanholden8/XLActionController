@@ -101,7 +101,7 @@ public class PeriscopeActionController: ActionController<PeriscopeCell, String, 
         settings.animation.dismiss.options = .curveEaseIn
         settings.animation.dismiss.offset = 30
 
-        cellSpec = .nibFile(nibName: "PeriscopeCell", bundle: Bundle(for: PeriscopeCell.self), height: { _ in 60})
+        cellSpec = .nibFile(nibName: "PeriscopeCell", bundle: Bundle(for: PeriscopeCell.self), height: { _,_  in 60})
         sectionHeaderSpec = .cellClass(height: { _ in 5 })
         headerSpec = .cellClass(height: { [weak self] (headerData: String) in
             guard let me = self else { return 0 }
