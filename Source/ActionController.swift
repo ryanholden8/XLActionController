@@ -761,8 +761,8 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
         }
 
         collectionView.contentInset = UIEdgeInsets(top: topInset, left: leftInset, bottom: bottomInset, right: rightInset)
-        if !settings.behavior.useDynamics {
-            collectionView.contentOffset.y = -height + contentHeight + bottomInset
+        if !settings.behavior.useDynamics && !isPopover() {
+            collectionView.contentOffset.y = -height + contentHeight + safeAreaInsets.bottom
         }
     }
     
