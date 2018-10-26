@@ -788,19 +788,18 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     
     open func sync(traitCollection: UITraitCollection) {
         guard traitCollection.verticalSizeClass != .unspecified else {return}
-        guard traitCollection.verticalSizeClass != lastSyncedTraitCollection?.verticalSizeClass else {return}
         
         if traitCollection.verticalSizeClass == .compact {
             shouldUseTwoColumns = true
+            collectionViewLayout.invalidateLayout()
             contentHeight = collectionViewLayout.collectionViewContentSize.height
         } else {
             shouldUseTwoColumns = false
+            collectionViewLayout.invalidateLayout()
             contentHeight = collectionViewLayout.collectionViewContentSize.height
         }
         
         setUpContentInsetForHeight(view.frame.height)
-        
-        lastSyncedTraitCollection = traitCollection
     }
 
     // MARK: - Private properties
@@ -815,7 +814,6 @@ open class ActionController<ActionViewType: UICollectionViewCell, ActionDataType
     fileprivate var _headerData: RawData<HeaderDataType>?
     fileprivate var _sections = [Section<ActionDataType, SectionHeaderDataType>]()
     fileprivate var previousSizeTotal: CGFloat?
-    private var lastSyncedTraitCollection: UITraitCollection?
 }
 
 // MARK: - DynamicsActionController class
